@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MS Creatives — AI content studio</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%23ff4e20'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #18181b; --surface: #27272a; --surface-alt: #202023; --border: #3f3f46;
+    --text: #e4e4e7; --text-soft: #a1a1aa; --text-faint: #71717a;
+    --brand: #ff7a52; --brand-hover: #ff9470; --brand-soft: #3a2015;
+    --good: #22c55e; --bad: #ef4444;
+    --font: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+  }
+  :root[data-theme="light"] {
+    --bg: #f4f4f5; --surface: #ffffff; --surface-alt: #fafafa; --border: #e4e4e7;
+    --text: #27272a; --text-soft: #71717a; --text-faint: #a1a1aa;
+    --brand: #ff4e20; --brand-hover: #e0431a; --brand-soft: #fff1ec;
+  }
+  * { box-sizing: border-box; }
+  /* Author `display` rules (.btn is inline-flex) outrank the UA stylesheet's [hidden] rule, so
+     setting .hidden = true on a button silently does nothing without this. Caught in testing. */
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text); font-family: var(--font);
+    font-size: 15px; line-height: 1.5;
+  }
+  button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+  h1, h2, h3 { margin: 0; font-weight: 650; }
+
+  /* ---------- chrome ---------- */
+  header {
+    display: flex; align-items: center; gap: 0.9rem; padding: 0.85rem 1.2rem;
+    border-bottom: 1px solid var(--border); background: var(--surface); position: sticky; top: 0; z-index: 20;
+  }
+  .logo-dot { width: 1.6rem; height: 1.6rem; border-radius: 6px; background: var(--brand); flex: none; }
+  header h1 { font-size: 1rem; letter-spacing: -0.01em; }
+  header .sub { color: var(--text-faint); font-size: 0.78rem; }
+  .spacer { flex: 1; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem;
+    border-radius: 8px; border: 1px solid var(--border); background: var(--surface);
+    cursor: pointer; font-size: 0.85rem; font-weight: 550;
+  }
+  .btn:hover { border-color: var(--brand); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn:disabled:hover { border-color: var(--border); }
+  .btn-primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .btn-primary:hover { background: var(--brand-hover); border-color: var(--brand-hover); }
+  .btn-ghost { background: transparent; }
+  .btn-sm { padding: 0.3rem 0.55rem; font-size: 0.76rem; }
+  .icon-btn {
+    width: 2.1rem; height: 2.1rem; display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer;
+  }
+  .icon-btn:hover { border-color: var(--brand); }
+
+  /* ---------- layout ---------- */
+  main { max-width: 1400px; margin: 0 auto; padding: 1.4rem 1.2rem 4rem; }
+  .studio { display: grid; grid-template-columns: minmax(0, 1fr) 27rem; gap: 1.4rem; align-items: start; }
+  @media (max-width: 1080px) { .studio { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 1.1rem; margin-bottom: 1.1rem;
+  }
+  .card-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.9rem; }
+  .card-head h2 { font-size: 0.9rem; }
+  .step-num {
+    width: 1.35rem; height: 1.35rem; border-radius: 50%; background: var(--brand-soft); color: var(--brand);
+    display: inline-flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700; flex: none;
+  }
+  .hint { color: var(--text-faint); font-size: 0.76rem; margin: 0.3rem 0 0; }
+
+  .field-col { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.9rem; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+  @media (max-width: 620px) { .field-row { grid-template-columns: 1fr; } }
+  label { font-size: 0.78rem; color: var(--text-soft); font-weight: 550; }
+  input[type="text"], input[type="password"], input[type="number"], textarea, select {
+    width: 100%; padding: 0.5rem 0.6rem; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface-alt); outline: none;
+  }
+  input:focus, textarea:focus, select:focus { border-color: var(--brand); }
+  textarea { resize: vertical; min-height: 4.5rem; }
+
+  .seg { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+  .seg button {
+    flex: 1 1 auto; padding: 0.55rem 0.6rem; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface-alt); cursor: pointer; font-size: 0.8rem; font-weight: 550;
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  }
+  .seg button.active { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
+
+  /* ---------- slide editor ---------- */
+  .slide-list { display: flex; flex-direction: column; gap: 0.7rem; }
+  .slide-row {
+    border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem; background: var(--surface-alt);
+  }
+  .slide-row.active { border-color: var(--brand); }
+  .slide-row-head {
+    display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;
+  }
+  .slide-tag {
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .slide-row input, .slide-row textarea { background: var(--surface); }
+  .slide-row textarea { min-height: 3.4rem; }
+  .slide-actions { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.5rem; }
+  .img-state { font-size: 0.72rem; color: var(--text-faint); display: inline-flex; align-items: center; gap: 0.3rem; }
+  .img-state.has { color: var(--good); }
+
+  /* ---------- preview ---------- */
+  .preview-wrap { position: sticky; top: 4.6rem; }
+  .canvas-shell {
+    background: var(--surface-alt); border: 1px solid var(--border); border-radius: 10px;
+    padding: 0.7rem; display: flex; flex-direction: column; align-items: center; gap: 0.6rem;
+  }
+  #previewCanvas { width: 100%; height: auto; border-radius: 6px; display: block; box-shadow: 0 4px 14px rgba(0,0,0,0.25); }
+  .canvas-nav { display: flex; align-items: center; gap: 0.5rem; }
+  .canvas-count { font-size: 0.76rem; color: var(--text-faint); min-width: 4rem; text-align: center; }
+  .export-row { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.8rem; }
+
+  /* ---------- keys / drafts panels ---------- */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: none;
+    align-items: center; justify-content: center; z-index: 150; padding: 1rem;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    width: 100%; max-width: 34rem; max-height: 88vh; overflow-y: auto; padding: 1.2rem;
+  }
+  .modal-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; }
+  .modal-head h3 { font-size: 0.95rem; flex: 1; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.1rem; }
+  .warn {
+    border: 1px solid var(--border); border-left: 3px solid var(--brand); border-radius: 8px;
+    background: var(--surface-alt); padding: 0.7rem 0.8rem; font-size: 0.8rem; color: var(--text-soft);
+    margin-bottom: 1rem;
+  }
+  .draft-row {
+    display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0;
+    border-bottom: 1px solid var(--border); font-size: 0.83rem;
+  }
+  .draft-row:last-child { border-bottom: none; }
+  .draft-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .draft-meta { color: var(--text-faint); font-size: 0.72rem; }
+  .empty { color: var(--text-faint); font-size: 0.82rem; padding: 0.8rem 0; }
+
+  /* ---------- status / toasts ---------- */
+  .toast-container {
+    position: fixed; bottom: 1.2rem; left: 50%; transform: translateX(-50%);
+    display: flex; flex-direction: column; gap: 0.5rem; z-index: 200; width: min(30rem, 92vw);
+  }
+  .toast {
+    display: flex; align-items: flex-start; gap: 0; padding: 0.7rem 0.85rem;
+    border: 1px solid var(--border); border-left: 3px solid var(--brand);
+    border-radius: 8px; background: var(--surface); font-size: 0.83rem;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.3); animation: toast-in 0.18s ease-out;
+  }
+  .toast.success { border-left-color: var(--good); }
+  .toast.error { border-left-color: var(--bad); }
+  .toast svg { flex: none; margin-right: 0.5rem; }
+  .toast.success svg { color: var(--good); }
+  .toast.error svg { color: var(--bad); }
+  .toast.info svg { color: var(--brand); }
+  .toast-text { flex: 1; word-break: break-word; }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+
+  .spin { animation: spin 0.9s linear infinite; transform-origin: 50% 50%; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+  .busy-note { font-size: 0.78rem; color: var(--text-faint); display: inline-flex; align-items: center; gap: 0.4rem; }
+
+  .script-box { white-space: pre-wrap; font-family: var(--font-mono); font-size: 0.78rem;
+    background: var(--surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo-dot"></span>
+  <div>
+    <h1>MS Creatives</h1>
+    <div class="sub">AI content studio — carousels, image posts, video scripts</div>
+  </div>
+  <span class="spacer"></span>
+  <button class="btn btn-ghost" id="draftsBtn">Saved drafts</button>
+  <button class="btn btn-ghost" id="keysBtn">API keys</button>
+  <button class="icon-btn" id="themeBtn" title="Toggle theme" aria-label="Toggle theme"></button>
+</header>
+
+<main>
+  <div class="studio">
+    <div>
+      <!-- ---------- step 1: brief ---------- -->
+      <section class="card">
+        <div class="card-head"><span class="step-num">1</span><h2>Brief</h2></div>
+
+        <div class="field-col">
+          <label>Format</label>
+          <div class="seg" id="formatSeg">
+            <button type="button" data-format="carousel" class="active">Carousel</button>
+            <button type="button" data-format="image">Single image</button>
+            <button type="button" data-format="video">Video script</button>
+          </div>
+        </div>
+
+        <div class="field-col">
+          <label for="briefTopic">What's the post about?</label>
+          <textarea id="briefTopic" placeholder="e.g. Why B2B brands in APAC are moving video production in-house — and the three things they underestimate"></textarea>
+        </div>
+
+        <div class="field-row">
+          <div class="field-col">
+            <label for="briefAudience">Audience</label>
+            <input type="text" id="briefAudience" placeholder="e.g. marketing leads at APAC B2B firms">
+          </div>
+          <div class="field-col">
+            <label for="briefTone">Tone</label>
+            <select id="briefTone">
+              <option>Confident, plain-spoken</option>
+              <option>Warm, behind-the-scenes</option>
+              <option>Analytical, data-led</option>
+              <option>Punchy, opinionated</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field-col" id="slideCountWrap">
+            <label for="briefSlides">Slides</label>
+            <input type="number" id="briefSlides" value="6" min="3" max="10">
+          </div>
+          <div class="field-col">
+            <label for="briefBucket">Content bucket</label>
+            <select id="briefBucket">
+              <option value="news">Company News &amp; Culture</option>
+              <option value="case">Client Success &amp; Case Studies</option>
+              <option value="industry" selected>Industry Insights &amp; Trends</option>
+              <option value="bts">Behind the Scenes / Video Production</option>
+              <option value="promo">Promotional / Services</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="generateBtn">Write it with AI</button>
+        <span id="generateNote" class="busy-note" style="margin-left:0.6rem"></span>
+        <p class="hint">Claude writes the copy. You edit anything you don't like before it gets rendered.</p>
+      </section>
+
+      <!-- ---------- step 2: draft ---------- -->
+      <section class="card" id="draftCard" hidden>
+        <div class="card-head">
+          <span class="step-num">2</span><h2>Draft</h2>
+          <span class="spacer"></span>
+          <button class="btn btn-ghost btn-sm" id="regenBtn">Rewrite</button>
+        </div>
+
+        <div id="scriptWrap" hidden>
+          <div class="field-col">
+            <label>Script</label>
+            <div class="script-box" id="scriptBox"></div>
+          </div>
+          <button class="btn btn-sm" id="copyScriptBtn">Copy script</button>
+          <p class="hint">Title and end cards below render as transparent PNGs for your timeline.</p>
+        </div>
+
+        <div class="slide-list" id="slideList"></div>
+
+        <div class="field-col" style="margin-top:1rem">
+          <label for="draftCaption">Post caption</label>
+          <textarea id="draftCaption"></textarea>
+        </div>
+        <div class="field-col">
+          <label for="draftHashtags">Hashtags</label>
+          <input type="text" id="draftHashtags">
+        </div>
+        <button class="btn btn-sm" id="copyCaptionBtn">Copy caption + hashtags</button>
+      </section>
+    </div>
+
+    <!-- ---------- step 3: preview / export ---------- -->
+    <aside>
+      <div class="preview-wrap">
+        <section class="card">
+          <div class="card-head"><span class="step-num">3</span><h2>Preview &amp; export</h2></div>
+          <div class="canvas-shell">
+            <canvas id="previewCanvas" width="1080" height="1350"></canvas>
+            <div class="canvas-nav">
+              <button class="icon-btn" id="prevSlideBtn" aria-label="Previous slide"></button>
+              <span class="canvas-count" id="slideCount">—</span>
+              <button class="icon-btn" id="nextSlideBtn" aria-label="Next slide"></button>
+            </div>
+          </div>
+          <div class="export-row">
+            <button class="btn btn-primary" id="exportPdfBtn">Export carousel PDF</button>
+            <button class="btn" id="exportPngBtn">This slide as PNG</button>
+            <button class="btn" id="exportAllPngBtn">All slides as PNG</button>
+          </div>
+          <p class="hint" id="exportHint">LinkedIn posts carousels as a PDF document. Single image posts export as PNG.</p>
+          <div class="export-row">
+            <button class="btn btn-ghost btn-sm" id="saveDraftBtn">Save draft</button>
+          </div>
+        </section>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<!-- ---------- keys modal ---------- -->
+<div class="modal-backdrop" id="keysBackdrop">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="keysTitle">
+    <div class="modal-head"><h3 id="keysTitle">API keys</h3>
+      <button class="icon-btn" id="keysCloseBtn" aria-label="Close"></button>
+    </div>
+    <div class="warn">
+      These keys stay in <strong>this browser only</strong> — they are never uploaded, never committed, and
+      never shared with teammates. Each person enters their own. Anyone with access to this computer's
+      browser profile can read them, so use a key with a spend limit set.
+    </div>
+    <div class="field-col">
+      <label for="keyClaude">Anthropic API key — writes the copy</label>
+      <input type="password" id="keyClaude" placeholder="sk-ant-..." autocomplete="off">
+      <p class="hint">From console.anthropic.com → API keys.</p>
+    </div>
+    <div class="field-col">
+      <label for="keyGemini">Google AI API key — generates the imagery</label>
+      <input type="password" id="keyGemini" placeholder="AIza..." autocomplete="off">
+      <p class="hint">From aistudio.google.com → Get API key. Optional: skip it and use your own images.</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="keysClearBtn">Clear keys</button>
+      <button class="btn btn-primary" id="keysSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ---------- drafts modal ---------- -->
+<div class="modal-backdrop" id="draftsBackdrop">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="draftsTitle">
+    <div class="modal-head"><h3 id="draftsTitle">Saved drafts</h3>
+      <button class="icon-btn" id="draftsCloseBtn" aria-label="Close"></button>
+    </div>
+    <div id="draftsList"></div>
+    <p class="hint">Drafts are saved in this browser. Text and image choices are kept; generated images are
+      re-kept as data so a reopened draft exports identically.</p>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="false"></div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   Brand kit — the one place to change when the real kit lands.
+   Fonts: canvas needs the actual font family available to the
+   browser. Swap FONT_HEAD/FONT_BODY once the .woff2 files are in
+   this folder and registered via @font-face above.
+   ============================================================ */
+var BRAND = {
+  orange: "#ff4e20",
+  ink: "#18181b",
+  paper: "#fafafa",
+  wordmark: "MEDIASHOCK",
+  FONT_HEAD: '650 1px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+  FONT_BODY: '400 1px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+  headFamily: '-apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+  bodyFamily: '-apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+};
+
+var BUCKET_COLORS = {
+  news: "#6366f1", case: "#2563eb", industry: "#0891b2", bts: "#475569", promo: "#b45309"
+};
+
+var CANVAS_W = 1080, CANVAS_H = 1350;   // LinkedIn 4:5 portrait
+var CLAUDE_MODEL = "claude-sonnet-5";
+var GEMINI_MODEL = "gemini-3.1-flash-image";
+var LS_KEYS = "mscreatives_keys";
+var LS_DRAFTS = "mscreatives_drafts";
+var LS_THEME = "mscreatives_theme";
+
+/* ---------- shared inline icons (never emoji — see DESIGN conventions) ---------- */
+var ICON_CHECK_CIRCLE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
+var ICON_ALERT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+var ICON_MESSAGE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+var ICON_X = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+var ICON_CHEV_L = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>';
+var ICON_CHEV_R = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+var ICON_SUN = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+var ICON_MOON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+var ICON_SPINNER = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" class="spin"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>';
+var ICON_IMAGE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
+var ICON_TRASH = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m5 0V4a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2"/></svg>';
+
+/* ============================================================
+   small helpers
+   ============================================================ */
+function el(id) { return document.getElementById(id); }
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+
+var TOAST_MAX = 3;
+var TOAST_MS = { error: 7000, success: 3000, info: 4500 };
+function showToast(message, type) {
+  type = type || "info";
+  var box = el("toastContainer");
+  while (box.children.length >= TOAST_MAX) box.removeChild(box.firstChild);
+  var icon = type === "success" ? ICON_CHECK_CIRCLE : (type === "error" ? ICON_ALERT : ICON_MESSAGE);
+  var node = document.createElement("div");
+  node.className = "toast " + type;
+  node.innerHTML = icon + '<span class="toast-text"></span>';
+  node.querySelector(".toast-text").textContent = message;   // never innerHTML — carries raw API errors
+  if (type === "error") node.setAttribute("role", "alert");
+  box.appendChild(node);
+  // Timer, not animationend: under prefers-reduced-motion the animation never fires.
+  setTimeout(function () { if (node.parentNode) node.parentNode.removeChild(node); }, TOAST_MS[type] || 4500);
+}
+
+/* ============================================================
+   state
+   ============================================================ */
+var state = {
+  format: "carousel",
+  slides: [],          // { headline, body, imageData (data URL) | null, imagePrompt }
+  caption: "",
+  hashtags: "",
+  script: "",
+  bucket: "industry",
+  current: 0,
+  draftId: null
+};
+
+/* ============================================================
+   API keys (localStorage, per browser)
+   ============================================================ */
+function loadKeys() {
+  try { return JSON.parse(localStorage.getItem(LS_KEYS) || "{}"); } catch (e) { return {}; }
+}
+function saveKeys(k) { localStorage.setItem(LS_KEYS, JSON.stringify(k)); }
+function needKey(which) {
+  var k = loadKeys();
+  if (which === "claude" && !k.claude) { showToast("Add your Anthropic key first — click API keys.", "error"); openKeys(); return true; }
+  if (which === "gemini" && !k.gemini) { showToast("Add your Google AI key first — click API keys.", "error"); openKeys(); return true; }
+  return false;
+}
+
+function openKeys() {
+  var k = loadKeys();
+  el("keyClaude").value = k.claude || "";
+  el("keyGemini").value = k.gemini || "";
+  el("keysBackdrop").classList.add("open");
+}
+function closeKeys() { el("keysBackdrop").classList.remove("open"); }
+
+/* ============================================================
+   Claude — copywriting
+   Direct browser calls need the dangerous-direct-browser-access
+   header; without it the request is blocked by CORS.
+   ============================================================ */
+function claudeJson(prompt, maxTokens) {
+  var key = loadKeys().claude;
+  return fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: maxTokens || 2000,
+      messages: [{ role: "user", content: prompt }]
+    })
+  }).then(function (r) {
+    return r.json().then(function (j) {
+      if (!r.ok) throw new Error((j && j.error && j.error.message) || ("Claude returned " + r.status));
+      return j;
+    });
+  }).then(function (j) {
+    var text = (j.content || []).map(function (c) { return c.text || ""; }).join("");
+    return parseLooseJson(text);
+  });
+}
+
+// Models sometimes wrap JSON in prose or a code fence; take the outermost object.
+function parseLooseJson(text) {
+  var start = text.indexOf("{"), end = text.lastIndexOf("}");
+  if (start === -1 || end <= start) throw new Error("Could not read the AI's response as JSON.");
+  return JSON.parse(text.slice(start, end + 1));
+}
+
+function buildPrompt() {
+  var topic = el("briefTopic").value.trim();
+  var audience = el("briefAudience").value.trim() || "B2B marketing decision-makers in APAC";
+  var tone = el("briefTone").value;
+  var n = Math.max(3, Math.min(10, parseInt(el("briefSlides").value, 10) || 6));
+  var common =
+    "You write LinkedIn content for Mediashock, a video production company in Singapore serving APAC B2B clients.\n" +
+    "Audience: " + audience + ".\nTone: " + tone + ". Write like a practitioner, not a marketer. " +
+    "No hype words, no 'game-changer', no emoji, no rhetorical-question openers.\n\nTopic: " + topic + "\n\n";
+
+  if (state.format === "video") {
+    return common +
+      "Produce a short-form video script (45-75 seconds).\n" +
+      "Return ONLY valid JSON, no prose, in this exact shape:\n" +
+      '{"titleCard":"6 words max, on-screen opening card",' +
+      '"endCard":"4 words max, closing call to action",' +
+      '"script":"the full script with SPOKEN and ON-SCREEN lines, plus bracketed shot notes",' +
+      '"caption":"the LinkedIn caption, 3-5 short paragraphs, no hashtags",' +
+      '"hashtags":"4-6 hashtags separated by spaces"}';
+  }
+  if (state.format === "image") {
+    return common +
+      "Produce a single image post.\n" +
+      "Return ONLY valid JSON, no prose, in this exact shape:\n" +
+      '{"slides":[{"headline":"8 words max, the whole point of the graphic",' +
+      '"body":"one supporting line, 15 words max",' +
+      '"imagePrompt":"a photographic art-direction brief for a background image: subject, lighting, mood, composition. No text, no words, no letters in the image."}],' +
+      '"caption":"the LinkedIn caption, 3-5 short paragraphs, no hashtags",' +
+      '"hashtags":"4-6 hashtags separated by spaces"}';
+  }
+  return common +
+    "Produce a " + n + "-slide carousel. Slide 1 is the hook and must earn the swipe. " +
+    "The last slide is the call to action. Each middle slide makes exactly one point.\n" +
+    "Return ONLY valid JSON, no prose, in this exact shape:\n" +
+    '{"slides":[{"headline":"8 words max","body":"20 words max, may be empty on the hook slide",' +
+    '"imagePrompt":"a photographic art-direction brief for this slide\'s background: subject, lighting, mood, composition. No text, no words, no letters in the image."}],' +
+    '"caption":"the LinkedIn caption, 3-5 short paragraphs, no hashtags",' +
+    '"hashtags":"4-6 hashtags separated by spaces"}';
+}
+
+function generateDraft() {
+  var topic = el("briefTopic").value.trim();
+  if (!topic) {
+    var t = el("briefTopic");
+    t.setCustomValidity("Tell the AI what the post is about.");
+    t.reportValidity();
+    var clear = function () { t.setCustomValidity(""); t.removeEventListener("input", clear); };
+    t.addEventListener("input", clear);
+    return;
+  }
+  if (needKey("claude")) return;
+
+  setBusy(true, "Writing…");
+  claudeJson(buildPrompt(), 3000).then(function (data) {
+    state.bucket = el("briefBucket").value;
+    state.caption = data.caption || "";
+    state.hashtags = data.hashtags || "";
+    state.script = data.script || "";
+
+    if (state.format === "video") {
+      state.slides = [
+        { headline: data.titleCard || "", body: "", imageData: null, imagePrompt: "", kind: "Title card" },
+        { headline: data.endCard || "", body: "", imageData: null, imagePrompt: "", kind: "End card" }
+      ];
+    } else {
+      state.slides = (data.slides || []).map(function (s) {
+        return {
+          headline: s.headline || "", body: s.body || "",
+          imageData: null, imagePrompt: s.imagePrompt || ""
+        };
+      });
+    }
+    if (!state.slides.length) throw new Error("The AI returned no slides. Try rewording the brief.");
+    state.current = 0;
+    state.draftId = null;
+    renderDraft();
+    showToast("Draft ready — edit anything before exporting.", "success");
+  }).catch(function (err) {
+    showToast(err.message || String(err), "error");
+  }).then(function () { setBusy(false, ""); });
+}
+
+function setBusy(on, label) {
+  el("generateBtn").disabled = on;
+  el("regenBtn").disabled = on;
+  el("generateNote").innerHTML = on ? (ICON_SPINNER + " " + escapeHtml(label)) : "";
+}
+
+/* ============================================================
+   Gemini — background imagery
+   Imagen was retired on 2026-08-17; this is the Interactions API.
+   ============================================================ */
+function geminiImage(prompt) {
+  var key = loadKeys().gemini;
+  return fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-goog-api-key": key },
+    body: JSON.stringify({
+      model: GEMINI_MODEL,
+      input: [{ type: "text", text: prompt + " Photographic, editorial quality. Absolutely no text, words, letters or logos anywhere in the image." }],
+      response_format: { type: "image", mime_type: "image/jpeg", aspect_ratio: "4:5", image_size: "2K" }
+    })
+  }).then(function (r) {
+    return r.json().then(function (j) {
+      if (!r.ok) throw new Error((j && j.error && j.error.message) || ("Google returned " + r.status));
+      return j;
+    });
+  }).then(function (j) {
+    var b64 = extractImageB64(j);
+    if (!b64) throw new Error("No image came back. The prompt may have been refused — try rewording it.");
+    return "data:image/jpeg;base64," + b64;
+  });
+}
+
+// Tolerates both the Interactions shape and the older generateContent/inlineData shape.
+function extractImageB64(json) {
+  if (json && json.output_image && json.output_image.data) return json.output_image.data;
+  var found = null;
+  (function walk(node) {
+    if (found || !node || typeof node !== "object") return;
+    if (node.inlineData && node.inlineData.data) { found = node.inlineData.data; return; }
+    if (node.inline_data && node.inline_data.data) { found = node.inline_data.data; return; }
+    var keys = Object.keys(node);
+    for (var i = 0; i < keys.length && !found; i++) walk(node[keys[i]]);
+  })(json);
+  return found;
+}
+
+function generateSlideImage(idx) {
+  if (needKey("gemini")) return;
+  var slide = state.slides[idx];
+  var prompt = slide.imagePrompt || slide.headline;
+  if (!prompt) { showToast("No art direction for this slide yet.", "error"); return; }
+  var btn = document.querySelector('[data-genimg="' + idx + '"]');
+  if (btn) { btn.disabled = true; btn.innerHTML = ICON_SPINNER + " Generating…"; }
+  geminiImage(prompt).then(function (dataUrl) {
+    state.slides[idx].imageData = dataUrl;
+    renderSlideRows();
+    state.current = idx;
+    drawPreview();
+    showToast("Image generated.", "success");
+  }).catch(function (err) {
+    showToast(err.message || String(err), "error");
+    renderSlideRows();
+  });
+}
+
+function pickSlideImage(idx) {
+  var input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.addEventListener("change", function () {
+    var file = input.files && input.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      state.slides[idx].imageData = reader.result;   // stays in the browser; no upload, no CORS taint
+      renderSlideRows();
+      state.current = idx;
+      drawPreview();
+    };
+    reader.readAsDataURL(file);
+  });
+  input.click();
+}
+
+/* ============================================================
+   canvas rendering
+   ============================================================ */
+var imageCache = {};
+function loadImage(src) {
+  if (imageCache[src]) return Promise.resolve(imageCache[src]);
+  return new Promise(function (resolve, reject) {
+    var img = new Image();
+    img.onload = function () { imageCache[src] = img; resolve(img); };
+    img.onerror = function () { reject(new Error("Image failed to load.")); };
+    img.src = src;
+  });
+}
+
+function wrapText(ctx, text, maxWidth) {
+  var words = String(text || "").split(/\s+/).filter(Boolean);
+  var lines = [], line = "";
+  for (var i = 0; i < words.length; i++) {
+    var test = line ? line + " " + words[i] : words[i];
+    if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = words[i]; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function drawSlide(ctx, slide, index, total, transparent) {
+  var W = CANVAS_W, H = CANVAS_H, pad = 84;
+  var accent = BUCKET_COLORS[state.bucket] || BRAND.orange;
+
+  ctx.clearRect(0, 0, W, H);
+
+  if (!transparent) {
+    // base
+    ctx.fillStyle = BRAND.ink;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  var hasImg = slide._img;
+  if (hasImg) {
+    // cover-fit
+    var img = slide._img;
+    var scale = Math.max(W / img.width, H / img.height);
+    var dw = img.width * scale, dh = img.height * scale;
+    ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    // scrim so text stays legible over any photo
+    var g = ctx.createLinearGradient(0, H * 0.25, 0, H);
+    g.addColorStop(0, "rgba(24,24,27,0)");
+    g.addColorStop(0.55, "rgba(24,24,27,0.72)");
+    g.addColorStop(1, "rgba(24,24,27,0.94)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  } else if (!transparent) {
+    // brand gradient fallback
+    var g2 = ctx.createLinearGradient(0, 0, W, H);
+    g2.addColorStop(0, BRAND.ink);
+    g2.addColorStop(1, accent);
+    ctx.fillStyle = g2;
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = BRAND.ink;
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+
+  // accent rule, top-left
+  ctx.fillStyle = accent;
+  ctx.fillRect(pad, pad, 96, 8);
+
+  var isHook = index === 0 && total > 1;
+  var headSize = isHook ? 104 : 78;
+  var bodySize = 38;
+
+  // headline — bottom-anchored block
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "650 " + headSize + "px " + BRAND.headFamily;
+  var headLines = wrapText(ctx, slide.headline, W - pad * 2);
+
+  ctx.font = "400 " + bodySize + "px " + BRAND.bodyFamily;
+  var bodyLines = slide.body ? wrapText(ctx, slide.body, W - pad * 2) : [];
+
+  var headLH = headSize * 1.12, bodyLH = bodySize * 1.4;
+  var blockH = headLines.length * headLH + (bodyLines.length ? 26 + bodyLines.length * bodyLH : 0);
+  var footerH = 120;
+  var y = H - footerH - pad - blockH + headLH * 0.78;
+
+  ctx.font = "650 " + headSize + "px " + BRAND.headFamily;
+  ctx.fillStyle = "#ffffff";
+  headLines.forEach(function (ln) { ctx.fillText(ln, pad, y); y += headLH; });
+
+  if (bodyLines.length) {
+    y += 26 - headLH + bodyLH * 0.2;
+    ctx.font = "400 " + bodySize + "px " + BRAND.bodyFamily;
+    ctx.fillStyle = "rgba(255,255,255,0.82)";
+    bodyLines.forEach(function (ln) { ctx.fillText(ln, pad, y); y += bodyLH; });
+  }
+
+  // footer: wordmark + slide counter. The wordmark is always Mediashock orange — the bucket
+  // accent colours the rule and the counter, but the brand mark itself must not drift per topic.
+  ctx.font = "650 26px " + BRAND.headFamily;
+  ctx.fillStyle = BRAND.orange;
+  ctx.fillText(BRAND.wordmark, pad, H - pad);
+
+  if (total > 1 && state.format !== "video") {
+    ctx.font = "400 26px " + BRAND.bodyFamily;
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    var label = (index + 1) + " / " + total;
+    ctx.fillText(label, W - pad - ctx.measureText(label).width, H - pad);
+
+    // swipe cue on the hook slide
+    if (isHook) {
+      ctx.strokeStyle = accent; ctx.lineWidth = 5; ctx.lineCap = "round";
+      var ax = W - pad - 46, ay = H - pad - 74;
+      ctx.beginPath();
+      ctx.moveTo(ax - 34, ay); ctx.lineTo(ax, ay);
+      ctx.moveTo(ax - 12, ay - 12); ctx.lineTo(ax, ay); ctx.lineTo(ax - 12, ay + 12);
+      ctx.stroke();
+    }
+  }
+}
+
+function drawPreview() {
+  var canvas = el("previewCanvas");
+  var ctx = canvas.getContext("2d");
+  var total = state.slides.length;
+  el("slideCount").textContent = total ? (state.current + 1) + " of " + total : "—";
+  if (!total) {
+    ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.fillStyle = "#27272a";
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.fillStyle = "#71717a";
+    ctx.font = "400 40px " + BRAND.bodyFamily;
+    ctx.fillText("Your slides appear here", 84, CANVAS_H / 2);
+    return;
+  }
+  var slide = state.slides[state.current];
+  var transparent = state.format === "video";
+  var go = function () { drawSlide(ctx, slide, state.current, total, transparent); };
+  if (slide.imageData) {
+    loadImage(slide.imageData).then(function (img) { slide._img = img; go(); }).catch(function () { slide._img = null; go(); });
+  } else { slide._img = null; go(); }
+}
+
+/* ============================================================
+   render — draft editor
+   ============================================================ */
+function renderDraft() {
+  el("draftCard").hidden = false;
+  el("scriptWrap").hidden = state.format !== "video";
+  el("scriptBox").textContent = state.script || "";
+  el("draftCaption").value = state.caption;
+  el("draftHashtags").value = state.hashtags;
+  renderSlideRows();
+  syncExportButtons();
+  drawPreview();
+}
+
+function renderSlideRows() {
+  var list = el("slideList");
+  list.innerHTML = state.slides.map(function (s, i) {
+    var tag = s.kind || (state.format === "carousel"
+      ? (i === 0 ? "Hook" : (i === state.slides.length - 1 ? "Call to action" : "Slide " + (i + 1)))
+      : "Graphic");
+    var hasImg = !!s.imageData;
+    return '' +
+      '<div class="slide-row' + (i === state.current ? " active" : "") + '" data-slide="' + i + '">' +
+        '<div class="slide-row-head">' +
+          '<span class="slide-tag">' + escapeHtml(tag) + '</span>' +
+          '<span class="spacer" style="flex:1"></span>' +
+          '<span class="img-state' + (hasImg ? " has" : "") + '">' + ICON_IMAGE +
+            (hasImg ? "image set" : "no image") + '</span>' +
+        '</div>' +
+        '<input type="text" data-field="headline" data-i="' + i + '" value="' + escapeHtml(s.headline) + '" placeholder="Headline">' +
+        (state.format === "video" ? "" :
+          '<textarea data-field="body" data-i="' + i + '" placeholder="Supporting line">' + escapeHtml(s.body) + '</textarea>') +
+        '<div class="slide-actions">' +
+          '<button type="button" class="btn btn-sm" data-genimg="' + i + '">' + ICON_IMAGE + ' Generate image</button>' +
+          '<button type="button" class="btn btn-sm" data-pickimg="' + i + '">Use my own</button>' +
+          (hasImg ? '<button type="button" class="btn btn-sm btn-ghost" data-clearimg="' + i + '" aria-label="Remove image" title="Remove image">' + ICON_TRASH + '</button>' : "") +
+        '</div>' +
+      '</div>';
+  }).join("");
+}
+
+function syncExportButtons() {
+  var isCarousel = state.format === "carousel";
+  el("exportPdfBtn").hidden = !isCarousel;
+  el("exportAllPngBtn").hidden = state.slides.length < 2;
+  el("exportHint").textContent = isCarousel
+    ? "LinkedIn posts carousels as a PDF document — that's the one to upload."
+    : (state.format === "video"
+      ? "Video cards export as transparent PNGs, ready to drop on a timeline."
+      : "Export the PNG, put it in Drive, then link it on the scheduled post in the Hub.");
+}
+
+/* ============================================================
+   export — PNG
+   ============================================================ */
+function renderToDataUrl(index, mime) {
+  var canvas = document.createElement("canvas");
+  canvas.width = CANVAS_W; canvas.height = CANVAS_H;
+  var ctx = canvas.getContext("2d");
+  var slide = state.slides[index];
+  var transparent = state.format === "video";
+  var finish = function () {
+    drawSlide(ctx, slide, index, state.slides.length, transparent);
+    return canvas.toDataURL(mime || "image/png", 0.92);
+  };
+  if (slide.imageData) {
+    return loadImage(slide.imageData).then(function (img) { slide._img = img; return finish(); });
+  }
+  slide._img = null;
+  return Promise.resolve(finish());
+}
+
+function downloadDataUrl(dataUrl, filename) {
+  var a = document.createElement("a");
+  a.href = dataUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function slugify(s) {
+  return String(s || "post").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "post";
+}
+
+function exportPng(index) {
+  renderToDataUrl(index, "image/png").then(function (url) {
+    downloadDataUrl(url, slugify(state.slides[0] && state.slides[0].headline) + "-" + (index + 1) + ".png");
+  }).catch(function (e) { showToast(e.message || String(e), "error"); });
+}
+
+function exportAllPng() {
+  var base = slugify(state.slides[0] && state.slides[0].headline);
+  var chain = Promise.resolve();
+  state.slides.forEach(function (s, i) {
+    chain = chain.then(function () {
+      return renderToDataUrl(i, "image/png").then(function (url) {
+        downloadDataUrl(url, base + "-" + (i + 1) + ".png");
+        return new Promise(function (r) { setTimeout(r, 350); });   // browsers drop rapid-fire downloads
+      });
+    });
+  });
+  chain.then(function () { showToast(state.slides.length + " PNGs downloaded.", "success"); })
+       .catch(function (e) { showToast(e.message || String(e), "error"); });
+}
+
+/* ============================================================
+   export — multi-page PDF, hand-written
+   Each page is one JPEG drawn full-bleed. Deliberately no PDF
+   library: this is the only output that needs one, the format's
+   simple enough to emit directly, and it keeps the app dependency-
+   free like its sibling projects.
+   ============================================================ */
+function jpegDimensions(bytes) {
+  // Walk JPEG markers for SOFn, which carries the real pixel size.
+  var i = 2;
+  while (i < bytes.length) {
+    if (bytes[i] !== 0xFF) { i++; continue; }
+    var marker = bytes[i + 1];
+    if (marker === 0xD8 || marker === 0x01 || (marker >= 0xD0 && marker <= 0xD7)) { i += 2; continue; }
+    var len = (bytes[i + 2] << 8) | bytes[i + 3];
+    if (marker >= 0xC0 && marker <= 0xCF && marker !== 0xC4 && marker !== 0xC8 && marker !== 0xCC) {
+      return { h: (bytes[i + 5] << 8) | bytes[i + 6], w: (bytes[i + 7] << 8) | bytes[i + 8] };
+    }
+    i += 2 + len;
+  }
+  return { w: CANVAS_W, h: CANVAS_H };
+}
+
+function dataUrlToLatin1(dataUrl) {
+  return atob(dataUrl.split(",")[1]);
+}
+
+function buildPdf(jpegStrings) {
+  var pageW = 612, pageH = 765;                 // 4:5 in points
+  var objects = [];                             // 1-indexed body strings
+  function addObj(s) { objects.push(s); return objects.length; }
+
+  var pagesId = 2;                              // reserved: 1 = catalog, 2 = pages
+  addObj("<< /Type /Catalog /Pages 2 0 R >>");
+  addObj("");                                   // placeholder, filled once kids are known
+
+  var kids = [];
+  jpegStrings.forEach(function (jpg) {
+    var bytes = new Uint8Array(jpg.length);
+    for (var i = 0; i < jpg.length; i++) bytes[i] = jpg.charCodeAt(i);
+    var dim = jpegDimensions(bytes);
+
+    var imgId = addObj(
+      "<< /Type /XObject /Subtype /Image /Width " + dim.w + " /Height " + dim.h +
+      " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length " + jpg.length +
+      " >>\nstream\n" + jpg + "\nendstream"
+    );
+    var content = "q\n" + pageW + " 0 0 " + pageH + " 0 0 cm\n/Im0 Do\nQ\n";
+    var contentId = addObj("<< /Length " + content.length + " >>\nstream\n" + content + "endstream");
+    var pageId = addObj(
+      "<< /Type /Page /Parent " + pagesId + " 0 R /MediaBox [0 0 " + pageW + " " + pageH + "]" +
+      " /Resources << /XObject << /Im0 " + imgId + " 0 R >> >> /Contents " + contentId + " 0 R >>"
+    );
+    kids.push(pageId + " 0 R");
+  });
+
+  objects[pagesId - 1] = "<< /Type /Pages /Kids [" + kids.join(" ") + "] /Count " + kids.length + " >>";
+
+  var out = "%PDF-1.4\n";
+  var offsets = [];
+  objects.forEach(function (body, idx) {
+    offsets.push(out.length);
+    out += (idx + 1) + " 0 obj\n" + body + "\nendobj\n";
+  });
+
+  var xrefStart = out.length;
+  out += "xref\n0 " + (objects.length + 1) + "\n0000000000 65535 f \n";
+  offsets.forEach(function (off) {
+    out += ("0000000000" + off).slice(-10) + " 00000 n \n";
+  });
+  out += "trailer\n<< /Size " + (objects.length + 1) + " /Root 1 0 R >>\nstartxref\n" + xrefStart + "\n%%EOF";
+
+  var buf = new Uint8Array(out.length);
+  for (var i = 0; i < out.length; i++) buf[i] = out.charCodeAt(i) & 0xFF;
+  return new Blob([buf], { type: "application/pdf" });
+}
+
+function exportPdf() {
+  if (!state.slides.length) return;
+  var btn = el("exportPdfBtn");
+  btn.disabled = true;
+  var original = btn.textContent;
+  btn.innerHTML = ICON_SPINNER + " Building PDF…";
+
+  var jpegs = [];
+  var chain = Promise.resolve();
+  state.slides.forEach(function (s, i) {
+    chain = chain.then(function () {
+      return renderToDataUrl(i, "image/jpeg").then(function (url) { jpegs.push(dataUrlToLatin1(url)); });
+    });
+  });
+  chain.then(function () {
+    var blob = buildPdf(jpegs);
+    var url = URL.createObjectURL(blob);
+    downloadDataUrl(url, slugify(state.slides[0] && state.slides[0].headline) + "-carousel.pdf");
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    showToast("PDF ready — upload it to LinkedIn as a document post.", "success");
+  }).catch(function (e) {
+    showToast(e.message || String(e), "error");
+  }).then(function () {
+    btn.disabled = false;
+    btn.textContent = original;
+  });
+}
+
+/* ============================================================
+   drafts (localStorage)
+   ============================================================ */
+function readDrafts() {
+  try { return JSON.parse(localStorage.getItem(LS_DRAFTS) || "[]"); } catch (e) { return []; }
+}
+function writeDrafts(list) {
+  try { localStorage.setItem(LS_DRAFTS, JSON.stringify(list)); return true; }
+  catch (e) { showToast("Browser storage is full — delete an old draft and try again.", "error"); return false; }
+}
+
+function saveDraft() {
+  if (!state.slides.length) { showToast("Nothing to save yet.", "error"); return; }
+  syncFromInputs();
+  var list = readDrafts();
+  var payload = {
+    id: state.draftId || ("d" + new Date().getTime()),
+    title: state.slides[0].headline || "Untitled",
+    format: state.format,
+    bucket: state.bucket,
+    savedAt: new Date().toISOString(),
+    slides: state.slides.map(function (s) {
+      return { headline: s.headline, body: s.body, imageData: s.imageData || null, imagePrompt: s.imagePrompt || "", kind: s.kind || null };
+    }),
+    caption: state.caption, hashtags: state.hashtags, script: state.script
+  };
+  var idx = list.findIndex(function (d) { return d.id === payload.id; });
+  if (idx === -1) list.unshift(payload); else list[idx] = payload;
+  if (writeDrafts(list)) {
+    state.draftId = payload.id;
+    showToast("Draft saved.", "success");
+  }
+}
+
+function openDraft(id) {
+  var d = readDrafts().find(function (x) { return x.id === id; });
+  if (!d) return;
+  state.format = d.format; state.bucket = d.bucket; state.caption = d.caption;
+  state.hashtags = d.hashtags; state.script = d.script || "";
+  state.slides = d.slides.map(function (s) { return Object.assign({}, s); });
+  state.current = 0; state.draftId = d.id;
+  Array.prototype.forEach.call(el("formatSeg").children, function (b) {
+    b.classList.toggle("active", b.dataset.format === state.format);
+  });
+  el("briefBucket").value = state.bucket;
+  el("slideCountWrap").hidden = state.format !== "carousel";
+  renderDraft();
+  el("draftsBackdrop").classList.remove("open");
+  showToast("Draft opened.", "info");
+}
+
+function deleteDraft(id) {
+  writeDrafts(readDrafts().filter(function (d) { return d.id !== id; }));
+  renderDraftsList();
+}
+
+function renderDraftsList() {
+  var list = readDrafts();
+  var box = el("draftsList");
+  if (!list.length) { box.innerHTML = '<p class="empty">No saved drafts yet.</p>'; return; }
+  box.innerHTML = list.map(function (d) {
+    var when = new Date(d.savedAt);
+    var label = when.getFullYear() + "-" + ("0" + (when.getMonth() + 1)).slice(-2) + "-" + ("0" + when.getDate()).slice(-2);
+    return '<div class="draft-row">' +
+      '<span class="draft-title">' + escapeHtml(d.title) + '</span>' +
+      '<span class="draft-meta">' + escapeHtml(d.format) + ' · ' + label + '</span>' +
+      '<button class="btn btn-sm" data-open="' + escapeHtml(d.id) + '">Open</button>' +
+      '<button class="icon-btn" data-del="' + escapeHtml(d.id) + '" aria-label="Delete draft">' + ICON_TRASH + '</button>' +
+      '</div>';
+  }).join("");
+}
+
+function syncFromInputs() {
+  state.caption = el("draftCaption").value;
+  state.hashtags = el("draftHashtags").value;
+}
+
+/* ============================================================
+   wiring
+   ============================================================ */
+el("formatSeg").addEventListener("click", function (e) {
+  var btn = e.target.closest("button[data-format]");
+  if (!btn) return;
+  Array.prototype.forEach.call(this.children, function (b) { b.classList.remove("active"); });
+  btn.classList.add("active");
+  state.format = btn.dataset.format;
+  el("slideCountWrap").hidden = state.format !== "carousel";
+  syncExportButtons();
+});
+
+el("generateBtn").addEventListener("click", generateDraft);
+el("regenBtn").addEventListener("click", generateDraft);
+
+el("slideList").addEventListener("input", function (e) {
+  var f = e.target.dataset.field;
+  if (!f) return;
+  var i = parseInt(e.target.dataset.i, 10);
+  state.slides[i][f] = e.target.value;
+  if (i === state.current) drawPreview();
+});
+
+el("slideList").addEventListener("click", function (e) {
+  var gen = e.target.closest("[data-genimg]");
+  if (gen) { generateSlideImage(parseInt(gen.dataset.genimg, 10)); return; }
+  var pick = e.target.closest("[data-pickimg]");
+  if (pick) { pickSlideImage(parseInt(pick.dataset.pickimg, 10)); return; }
+  var clr = e.target.closest("[data-clearimg]");
+  if (clr) {
+    var ci = parseInt(clr.dataset.clearimg, 10);
+    state.slides[ci].imageData = null;
+    renderSlideRows(); drawPreview();
+    return;
+  }
+  var row = e.target.closest(".slide-row");
+  if (row) {
+    state.current = parseInt(row.dataset.slide, 10);
+    renderSlideRows(); drawPreview();
+  }
+});
+
+el("prevSlideBtn").addEventListener("click", function () {
+  if (!state.slides.length) return;
+  state.current = (state.current - 1 + state.slides.length) % state.slides.length;
+  renderSlideRows(); drawPreview();
+});
+el("nextSlideBtn").addEventListener("click", function () {
+  if (!state.slides.length) return;
+  state.current = (state.current + 1) % state.slides.length;
+  renderSlideRows(); drawPreview();
+});
+
+el("exportPngBtn").addEventListener("click", function () { if (state.slides.length) exportPng(state.current); });
+el("exportAllPngBtn").addEventListener("click", function () { if (state.slides.length) exportAllPng(); });
+el("exportPdfBtn").addEventListener("click", exportPdf);
+el("saveDraftBtn").addEventListener("click", saveDraft);
+
+el("copyCaptionBtn").addEventListener("click", function () {
+  syncFromInputs();
+  var text = state.caption + (state.hashtags ? "\n\n" + state.hashtags : "");
+  navigator.clipboard.writeText(text).then(function () { showToast("Caption copied.", "success"); },
+    function () { showToast("Couldn't copy — select the text manually.", "error"); });
+});
+el("copyScriptBtn").addEventListener("click", function () {
+  navigator.clipboard.writeText(state.script || "").then(function () { showToast("Script copied.", "success"); },
+    function () { showToast("Couldn't copy — select the text manually.", "error"); });
+});
+
+el("keysBtn").addEventListener("click", openKeys);
+el("keysCloseBtn").addEventListener("click", closeKeys);
+el("keysSaveBtn").addEventListener("click", function () {
+  saveKeys({ claude: el("keyClaude").value.trim(), gemini: el("keyGemini").value.trim() });
+  closeKeys();
+  showToast("Keys saved in this browser.", "success");
+});
+el("keysClearBtn").addEventListener("click", function () {
+  localStorage.removeItem(LS_KEYS);
+  el("keyClaude").value = ""; el("keyGemini").value = "";
+  showToast("Keys cleared.", "info");
+});
+
+el("draftsBtn").addEventListener("click", function () {
+  renderDraftsList();
+  el("draftsBackdrop").classList.add("open");
+});
+el("draftsCloseBtn").addEventListener("click", function () { el("draftsBackdrop").classList.remove("open"); });
+el("draftsList").addEventListener("click", function (e) {
+  var o = e.target.closest("[data-open]");
+  if (o) { openDraft(o.dataset.open); return; }
+  var d = e.target.closest("[data-del]");
+  if (d) deleteDraft(d.dataset.del);
+});
+
+[el("keysBackdrop"), el("draftsBackdrop")].forEach(function (bd) {
+  bd.addEventListener("click", function (e) { if (e.target === bd) bd.classList.remove("open"); });
+});
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape") {
+    el("keysBackdrop").classList.remove("open");
+    el("draftsBackdrop").classList.remove("open");
+  }
+});
+
+/* ---------- theme ---------- */
+function applyTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  el("themeBtn").innerHTML = t === "dark" ? ICON_SUN : ICON_MOON;
+  localStorage.setItem(LS_THEME, t);
+}
+el("themeBtn").addEventListener("click", function () {
+  applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+});
+applyTheme(localStorage.getItem(LS_THEME) || "dark");
+
+/* ---------- live update: auto-reload when a new version is deployed ----------
+   GitHub Pages has no push mechanism, so this polls a tiny version.txt and reloads once a new
+   one shows up. This file has no sync script (see CLAUDE.md, "Single index.html, hand-edited"),
+   so CURRENT_BUILD_VERSION and version.txt are both hand-edited on any deploy-worthy change —
+   keep them in sync manually. Never reloads out from under an open modal, or an in-progress
+   generate/export would be lost mid-action. */
+var CURRENT_BUILD_VERSION = "2026-08-18T00:00:00Z";
+var pendingBuildVersion = null;
+
+function anyModalOpen() {
+  return !!document.querySelector(".modal-backdrop.open");
+}
+
+function reloadIfPendingAndSafe() {
+  if (pendingBuildVersion && !anyModalOpen()) location.reload();
+}
+
+function checkForNewVersion() {
+  fetch("version.txt?_=" + Date.now(), { cache: "no-store" })
+    .then(function (r) { return r.ok ? r.text() : null; })
+    .then(function (text) {
+      if (!text) return;
+      var latest = text.trim();
+      if (latest && latest !== CURRENT_BUILD_VERSION) {
+        pendingBuildVersion = latest;
+        reloadIfPendingAndSafe();
+      }
+    })
+    .catch(function () {});
+}
+
+setInterval(checkForNewVersion, 60000);
+setInterval(reloadIfPendingAndSafe, 5000);
+document.addEventListener("visibilitychange", function () {
+  if (document.visibilityState === "visible") checkForNewVersion();
+});
+
+/* ---------- first paint ---------- */
+el("prevSlideBtn").innerHTML = ICON_CHEV_L;
+el("nextSlideBtn").innerHTML = ICON_CHEV_R;
+el("keysCloseBtn").innerHTML = ICON_X;
+el("draftsCloseBtn").innerHTML = ICON_X;
+el("slideCountWrap").hidden = false;
+syncExportButtons();
+drawPreview();
+</script>
+</body>
+</html>
