@@ -169,6 +169,13 @@ Behance's is deprecated for new integrations).
    blocks + one text block) only when `images.length`; the plain-string path is untouched for the
    (common) no-inspiration case, so nothing changes for anyone who doesn't use this field.
    `state.inspiration` is persisted in saved drafts so reopening one keeps what inspired it.
+   `#inspirationDrop` also accepts drag-and-drop (multiple files at once), depth-counted the same
+   way as the Hub's analytics-import zone (`inspirationDropDepth` — a bare enter/leave toggle
+   flickers because the zone's children, the thumbnails and the button, also fire enter/leave as
+   the cursor crosses them). A `window`-level `dragover`/`drop` guard stops a file dropped just
+   outside the zone from navigating the tab to that file. `addInspirationFiles()` is the single
+   entry point both the file picker and the drop handler call, filters to `image/*`, and enforces
+   the 3-image cap with a toast rather than silently dropping the overflow.
 
 Both mechanisms explicitly tell Claude the brand's fixed elements (orange wordmark, bucket accent)
 are not up for reinterpretation — "creative" is scoped to composition and imagery mood, not the

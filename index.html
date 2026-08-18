@@ -182,6 +182,11 @@
     background: var(--surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem; }
 
   /* ---------- inspiration references ---------- */
+  .insp-dropzone {
+    border: 1px dashed var(--border); border-radius: 10px; padding: 0.6rem;
+    display: flex; flex-direction: column; gap: 0.5rem; transition: border-color 0.12s, background 0.12s;
+  }
+  .insp-dropzone.drag { border-color: var(--brand); background: var(--brand-soft); }
   .insp-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
   .insp-thumb { position: relative; width: 3.6rem; height: 3.6rem; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); flex: none; }
   .insp-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -263,10 +268,13 @@
 
         <div class="field-col">
           <label>Inspiration <span style="font-weight:400;color:var(--text-faint)">(optional, up to 3)</span></label>
-          <div class="insp-row" id="inspirationRow"></div>
-          <button type="button" class="btn btn-ghost btn-sm" id="addInspirationBtn">Add reference image</button>
-          <p class="hint">Screenshots from Behance, Pinterest or Dribbble that capture the mood you're after. The
-            AI reads the composition and energy, not the literal content, and brand colours/wordmark still apply.</p>
+          <div class="insp-dropzone" id="inspirationDrop">
+            <div class="insp-row" id="inspirationRow"></div>
+            <button type="button" class="btn btn-ghost btn-sm" id="addInspirationBtn">Add reference image</button>
+          </div>
+          <p class="hint">Screenshots from Behance, Pinterest or Dribbble that capture the mood you're after — drop
+            them in, or click to browse. The AI reads the composition and energy, not the literal content, and
+            brand colours/wordmark still apply.</p>
         </div>
 
         <button class="btn btn-primary" id="generateBtn">Write it with AI</button>
@@ -751,6 +759,32 @@ function downscaleImageFile(file, maxDim) {
   });
 }
 
+// Shared by the file picker and drag-and-drop -- chained rather than parallel so drafts stay
+// deterministic (drop order == array order) and one bad file's toast doesn't race a good one's.
+function addInspirationFiles(files) {
+  files = Array.prototype.filter.call(files || [], function (f) { return f.type.indexOf("image/") === 0; });
+  if (!files.length) return;
+  var room = MAX_INSPIRATION - state.inspiration.length;
+  if (room <= 0) {
+    showToast("Up to " + MAX_INSPIRATION + " reference images.", "error");
+    return;
+  }
+  var accepted = files.slice(0, room);
+  if (files.length > accepted.length) {
+    showToast("Only added " + accepted.length + " — up to " + MAX_INSPIRATION + " reference images.", "info");
+  }
+  var chain = Promise.resolve();
+  accepted.forEach(function (file) {
+    chain = chain.then(function () {
+      return downscaleImageFile(file, INSPIRATION_MAX_DIM).then(function (dataUrl) {
+        state.inspiration.push(dataUrl);
+        renderInspirationRow();
+      });
+    });
+  });
+  chain.catch(function (e) { showToast(e.message || String(e), "error"); });
+}
+
 function addInspirationImage() {
   if (state.inspiration.length >= MAX_INSPIRATION) {
     showToast("Up to " + MAX_INSPIRATION + " reference images.", "error");
@@ -759,14 +793,8 @@ function addInspirationImage() {
   var input = document.createElement("input");
   input.type = "file";
   input.accept = "image/*";
-  input.addEventListener("change", function () {
-    var file = input.files && input.files[0];
-    if (!file) return;
-    downscaleImageFile(file, INSPIRATION_MAX_DIM).then(function (dataUrl) {
-      state.inspiration.push(dataUrl);
-      renderInspirationRow();
-    }).catch(function (e) { showToast(e.message || String(e), "error"); });
-  });
+  input.multiple = true;
+  input.addEventListener("change", function () { addInspirationFiles(input.files); });
   input.click();
 }
 
@@ -1418,6 +1446,32 @@ el("inspirationRow").addEventListener("click", function (e) {
   renderInspirationRow();
 });
 
+// Drag-and-drop onto the inspiration zone. Depth-counted, not a bare enter/leave toggle -- the
+// zone has child elements (the thumbnails, the button), and the browser fires enter/leave on
+// those too as the cursor crosses their boundaries, which flickers a bare toggle mid-drag.
+// Same pattern as the Hub's analytics-import drop zone (see that project's CLAUDE.md).
+var inspirationDropDepth = 0;
+var inspirationDropZone = el("inspirationDrop");
+inspirationDropZone.addEventListener("dragenter", function (e) {
+  e.preventDefault();
+  inspirationDropDepth++;
+  inspirationDropZone.classList.add("drag");
+});
+inspirationDropZone.addEventListener("dragover", function (e) { e.preventDefault(); });
+inspirationDropZone.addEventListener("dragleave", function () {
+  inspirationDropDepth = Math.max(0, inspirationDropDepth - 1);
+  if (inspirationDropDepth === 0) inspirationDropZone.classList.remove("drag");
+});
+inspirationDropZone.addEventListener("drop", function (e) {
+  e.preventDefault();
+  inspirationDropDepth = 0;
+  inspirationDropZone.classList.remove("drag");
+  addInspirationFiles(e.dataTransfer && e.dataTransfer.files);
+});
+// A file dropped just outside the zone would otherwise navigate the tab to that file.
+window.addEventListener("dragover", function (e) { e.preventDefault(); });
+window.addEventListener("drop", function (e) { e.preventDefault(); });
+
 el("slideList").addEventListener("input", function (e) {
   var f = e.target.dataset.field;
   if (!f) return;
@@ -1524,7 +1578,7 @@ applyTheme(localStorage.getItem(LS_THEME) || "dark");
    so CURRENT_BUILD_VERSION and version.txt are both hand-edited on any deploy-worthy change —
    keep them in sync manually. Never reloads out from under an open modal, or an in-progress
    generate/export would be lost mid-action. */
-var CURRENT_BUILD_VERSION = "2026-08-18T04:25:39Z";
+var CURRENT_BUILD_VERSION = "2026-08-18T07:13:05Z";
 var pendingBuildVersion = null;
 
 function anyModalOpen() {
