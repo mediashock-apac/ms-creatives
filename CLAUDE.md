@@ -96,22 +96,92 @@ Don't add a feature that lets the image model produce the headline.
 
 ## Rendering
 
-`drawSlide(ctx, slide, index, total, transparent)` is the single renderer — the preview canvas, PNG
-export and every PDF page all go through it, so there is no second layout to keep in sync. Output is
-1080×1350 (`CANVAS_W`/`CANVAS_H`), LinkedIn's 4:5 portrait.
+`drawSlide(ctx, slide, index, total, transparent)` is a **dispatcher**, not a single layout — the
+preview canvas, PNG export and every PDF page all go through it, so there is still only one place
+to keep in sync, but it delegates to one of four composition functions based on `slide.composition`
+(`validComposition()` falls back to `"bottom"` for anything unrecognized, including drafts saved
+before this existed). Output is 1080×1350 (`CANVAS_W`/`CANVAS_H`), LinkedIn's 4:5 portrait.
 
-- **Text is bottom-anchored**, measured before drawing: `wrapText()` wraps against real
-  `measureText()` widths, then the block's total height is subtracted from the footer line so a
-  three-line headline and a one-line headline both sit correctly above the wordmark.
-- **A photo background always gets a scrim** (a bottom-weighted dark gradient) before type is drawn.
-  Without it, white text on a light photo is unreadable. Don't skip it for "cleaner" slides.
-- **The wordmark is always `BRAND.orange`**, never the bucket accent colour. The bucket colour tints
-  the top rule and the slide counter only — the brand mark itself must not drift per topic. (It did
-  originally; caught in a render screenshot.)
+**Why more than one layout:** a fixed single composition means every post has the same structural
+rhythm even with fresh copy and fresh imagery — flagged directly by feedback that AI-generated
+output needs to look "creative and out-of-the-box," not templated. The fix wasn't a freeform editor
+(considered and deliberately rejected — see "Not an editor" below); it's a small library of
+genuinely different on-brand layouts that Claude picks between per-slide.
+
+- **`drawSlideBottom`** (default) — full-bleed photo, headline+body anchored at the base. The
+  original, and still the best fit for the hook slide.
+- **`drawSlideSplit`** — image fills ~56% of the frame, text sits on a solid ink panel beside it.
+  Alternates which side the image is on by `index % 2` so a deck doesn't lean the same way twice.
+- **`drawSlideQuote`** — centered pull-quote, no image required, heavier full-frame scrim when one
+  is present since the whole frame is text-first.
+- **`drawSlideStat`** — a big number/short claim anchored near the *top* (inverse of the bottom
+  composition), with an auto-shrink loop so a stat that wraps past 2 lines doesn't collide with the
+  body line.
+
+Shared across all four (factored into `fillBackground`/`fillScrim`/`drawAccentRule`/`drawFooter` so
+they can't drift per composition):
+- **The wordmark is always `BRAND.orange`** at a fixed bottom-left position, never the bucket accent
+  colour and never repositioned per layout — the brand mark must not drift per topic *or* per
+  composition. (Colour drift happened once already; caught in a render screenshot.)
+- **A photo background always gets a scrim** before type is drawn — the exact gradient differs per
+  composition (bottom-weighted for `bottom`, near-full-frame for `quote`, top-weighted for `stat`)
+  but every composition has one. Don't skip it for "cleaner" slides.
 - **`transparent: true`** (video cards) skips the background fill entirely so the PNG exports with a
-  real alpha channel for compositing. It does *not* skip the scrim when there's a photo, since a
-  card over footage still needs legible type.
-- Slide 1 of a multi-slide deck is treated as the hook: larger headline plus a swipe arrow.
+  real alpha channel for compositing. Video always forces the `bottom` composition regardless of
+  what's stored on the slide — title/end cards are single short lines with no `imagePrompt`-driven
+  art direction for the other layouts to react to.
+- Text is measured before drawing: `wrapText()` wraps against real `measureText()` widths, then
+  block height is subtracted from the anchor point so slides with different line counts still sit
+  correctly.
+- `ctx.textAlign`/`textBaseline` are reset to `"left"`/`"alphabetic"` in the dispatcher before
+  delegating — `quote` sets `"center"` internally for its own text and must restore `"left"` before
+  returning, or the *next* slide drawn on the same reused `<canvas>` context inherits it silently.
+
+Slide 1 of a multi-slide deck is still treated as the hook (larger headline, swipe-arrow cue) —
+but only on `bottom`/`quote`/`stat`; `split`'s counter sits mid-canvas instead of the corner, so the
+arrow (anchored to the counter position) is deliberately omitted there rather than drawn somewhere
+that reads wrong.
+
+Claude picks `composition` per-slide as part of the same JSON response that writes the copy (see
+`COMPOSITION_GUIDE` in `buildPrompt()` — keep it in sync with the four functions above if you add or
+rename one). The slide editor also renders a `<select data-field="composition">` per row so a
+person can override the AI's pick; it reuses the existing delegated `input` listener that already
+handles `headline`/`body`, no separate wiring needed.
+
+## Creative direction — trend literacy and reference images
+
+Two related mechanisms address "the assistant should draw on Behance/Pinterest/Dribbble-calibre
+craft, not look templated" — deliberately *not* live scraping those platforms, since this is a
+static page with no backend and none of the three offer a public API a browser could call directly
+even with a backend (Dribbble's is effectively closed, Pinterest's needs business-app approval,
+Behance's is deprecated for new integrations).
+
+1. **Always-on**: `buildPrompt()`'s common preamble explicitly frames Claude as having "current
+   instincts for visual composition — the kind of art direction you'd find on Behance, Dribbble and
+   Pinterest," paired with the composition library above so that instinct has somewhere to land
+   (a trend-literate prompt with only one possible layout wouldn't produce visible variety).
+2. **Opt-in, per-brief**: the "Inspiration" field in the Brief card (`#inspirationRow` /
+   `#addInspirationBtn`, capped at `MAX_INSPIRATION` = 3) lets someone attach real reference
+   screenshots. `downscaleImageFile()` (canvas resize to `INSPIRATION_MAX_DIM` = 1024px, JPEG 0.85)
+   runs before the image ever leaves the file picker, both to keep the `localStorage` draft payload
+   small and to keep the multimodal API call cheap — an unedited phone screenshot can be several MB.
+   `claudeJson(prompt, maxTokens, images)` builds an Anthropic multimodal `content` array (image
+   blocks + one text block) only when `images.length`; the plain-string path is untouched for the
+   (common) no-inspiration case, so nothing changes for anyone who doesn't use this field.
+   `state.inspiration` is persisted in saved drafts so reopening one keeps what inspired it.
+
+Both mechanisms explicitly tell Claude the brand's fixed elements (orange wordmark, bucket accent)
+are not up for reinterpretation — "creative" is scoped to composition and imagery mood, not the
+brand system.
+
+## Not an editor — still true, on purpose
+
+A prior conversation explored building this into a Canva-style freeform editor (drag/resize/rotate,
+layers, multi-element selection). Deliberately rejected: that's a different, much larger product
+than what this app is for, and Canva already does it well for a modest per-seat cost. The actual
+gap it surfaced — daily output looking structurally identical — is what the composition library
+above addresses instead, without taking on a general-purpose editor's scope. If a real freeform-
+editing need comes up later, treat it as a new tool, not a rework of this one's renderer.
 
 ## Brand kit
 

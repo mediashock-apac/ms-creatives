@@ -180,6 +180,17 @@
 
   .script-box { white-space: pre-wrap; font-family: var(--font-mono); font-size: 0.78rem;
     background: var(--surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem; }
+
+  /* ---------- inspiration references ---------- */
+  .insp-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
+  .insp-thumb { position: relative; width: 3.6rem; height: 3.6rem; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); flex: none; }
+  .insp-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .insp-thumb button {
+    position: absolute; top: 2px; right: 2px; width: 1.1rem; height: 1.1rem; border-radius: 50%;
+    border: none; background: rgba(0,0,0,0.65); color: #fff; display: inline-flex; align-items: center;
+    justify-content: center; cursor: pointer; padding: 0;
+  }
+  .insp-thumb button svg { width: 10px; height: 10px; }
 </style>
 </head>
 <body>
@@ -248,6 +259,14 @@
               <option value="promo">Promotional / Services</option>
             </select>
           </div>
+        </div>
+
+        <div class="field-col">
+          <label>Inspiration <span style="font-weight:400;color:var(--text-faint)">(optional, up to 3)</span></label>
+          <div class="insp-row" id="inspirationRow"></div>
+          <button type="button" class="btn btn-ghost btn-sm" id="addInspirationBtn">Add reference image</button>
+          <p class="hint">Screenshots from Behance, Pinterest or Dribbble that capture the mood you're after. The
+            AI reads the composition and energy, not the literal content, and brand colours/wordmark still apply.</p>
         </div>
 
         <button class="btn btn-primary" id="generateBtn">Write it with AI</button>
@@ -432,13 +451,14 @@ function showToast(message, type) {
    ============================================================ */
 var state = {
   format: "carousel",
-  slides: [],          // { headline, body, imageData (data URL) | null, imagePrompt }
+  slides: [],          // { headline, body, imageData (data URL) | null, imagePrompt, composition }
   caption: "",
   hashtags: "",
   script: "",
   bucket: "industry",
   current: 0,
-  draftId: null
+  draftId: null,
+  inspiration: []       // reference image data URLs (downscaled), read by Claude, not rendered
 };
 
 /* ============================================================
@@ -468,8 +488,18 @@ function closeKeys() { el("keysBackdrop").classList.remove("open"); }
    Direct browser calls need the dangerous-direct-browser-access
    header; without it the request is blocked by CORS.
    ============================================================ */
-function claudeJson(prompt, maxTokens) {
+function claudeJson(prompt, maxTokens, images) {
   var key = loadKeys().claude;
+  // Plain string content when there are no reference images (unchanged behavior for the
+  // common path); an image+text block array only when inspiration images are attached.
+  var content = prompt;
+  if (images && images.length) {
+    content = images.map(function (dataUrl) {
+      var header = dataUrl.split(",")[0];                          // "data:image/jpeg;base64"
+      var mediaType = header.slice(5, header.indexOf(";"));
+      return { type: "image", source: { type: "base64", media_type: mediaType, data: dataUrl.split(",")[1] } };
+    }).concat([{ type: "text", text: prompt }]);
+  }
   return fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -481,7 +511,7 @@ function claudeJson(prompt, maxTokens) {
     body: JSON.stringify({
       model: CLAUDE_MODEL,
       max_tokens: maxTokens || 2000,
-      messages: [{ role: "user", content: prompt }]
+      messages: [{ role: "user", content: content }]
     })
   }).then(function (r) {
     return r.json().then(function (j) {
@@ -501,15 +531,37 @@ function parseLooseJson(text) {
   return JSON.parse(text.slice(start, end + 1));
 }
 
+// Composition archetypes the renderer actually knows how to draw (see drawSlide's dispatcher).
+// Keep this list and the guidance text below in sync with the drawSlideX functions.
+var COMPOSITION_KEYS = ["bottom", "split", "quote", "stat"];
+function validComposition(c) { return COMPOSITION_KEYS.indexOf(c) !== -1 ? c : "bottom"; }
+
+var COMPOSITION_GUIDE =
+  "Composition guide — vary these across the deck, don't default to the same one every slide:\n" +
+  "- bottom: full-bleed photo, headline+body anchored at the bottom third. Best for the hook and photo-led points.\n" +
+  "- split: image fills roughly half the frame, headline+body sits on a solid panel beside it. Best when the " +
+  "image and the point carry equal weight.\n" +
+  "- quote: centered text, no image needed. Best for one sharp line that should read like a pull-quote.\n" +
+  "- stat: a big number or short punch phrase anchored near the top. Best for data points or a bold claim.\n";
+
 function buildPrompt() {
   var topic = el("briefTopic").value.trim();
   var audience = el("briefAudience").value.trim() || "B2B marketing decision-makers in APAC";
   var tone = el("briefTone").value;
   var n = Math.max(3, Math.min(10, parseInt(el("briefSlides").value, 10) || 6));
   var common =
-    "You write LinkedIn content for Mediashock, a video production company in Singapore serving APAC B2B clients.\n" +
+    "You write LinkedIn content for Mediashock, a video production company in Singapore serving APAC B2B clients. " +
+    "You also have strong, current instincts for visual composition — the kind of art direction you'd find on " +
+    "Behance, Dribbble and Pinterest: confident type scale, generous negative space, purposeful asymmetry, " +
+    "unexpected crops. Avoid the generic centered-stock-photo-plus-caption look.\n" +
     "Audience: " + audience + ".\nTone: " + tone + ". Write like a practitioner, not a marketer. " +
     "No hype words, no 'game-changer', no emoji, no rhetorical-question openers.\n\nTopic: " + topic + "\n\n";
+
+  if (state.inspiration.length) {
+    common += "Reference images are attached above — read their composition, color mood and typographic energy " +
+      "and let that inform your choices below. Never copy specific content from them, and never let them override " +
+      "the brand's fixed elements (the orange wordmark, the bucket accent color).\n\n";
+  }
 
   if (state.format === "video") {
     return common +
@@ -522,20 +574,22 @@ function buildPrompt() {
       '"hashtags":"4-6 hashtags separated by spaces"}';
   }
   if (state.format === "image") {
-    return common +
+    return common + COMPOSITION_GUIDE +
       "Produce a single image post.\n" +
       "Return ONLY valid JSON, no prose, in this exact shape:\n" +
       '{"slides":[{"headline":"8 words max, the whole point of the graphic",' +
       '"body":"one supporting line, 15 words max",' +
+      '"composition":"one of: bottom, split, quote, stat — pick whichever serves this specific point best",' +
       '"imagePrompt":"a photographic art-direction brief for a background image: subject, lighting, mood, composition. No text, no words, no letters in the image."}],' +
       '"caption":"the LinkedIn caption, 3-5 short paragraphs, no hashtags",' +
       '"hashtags":"4-6 hashtags separated by spaces"}';
   }
-  return common +
+  return common + COMPOSITION_GUIDE +
     "Produce a " + n + "-slide carousel. Slide 1 is the hook and must earn the swipe. " +
     "The last slide is the call to action. Each middle slide makes exactly one point.\n" +
     "Return ONLY valid JSON, no prose, in this exact shape:\n" +
     '{"slides":[{"headline":"8 words max","body":"20 words max, may be empty on the hook slide",' +
+    '"composition":"one of: bottom, split, quote, stat — vary it slide-to-slide based on that slide\'s content",' +
     '"imagePrompt":"a photographic art-direction brief for this slide\'s background: subject, lighting, mood, composition. No text, no words, no letters in the image."}],' +
     '"caption":"the LinkedIn caption, 3-5 short paragraphs, no hashtags",' +
     '"hashtags":"4-6 hashtags separated by spaces"}';
@@ -554,7 +608,7 @@ function generateDraft() {
   if (needKey("claude")) return;
 
   setBusy(true, "Writing…");
-  claudeJson(buildPrompt(), 3000).then(function (data) {
+  claudeJson(buildPrompt(), 3000, state.inspiration).then(function (data) {
     state.bucket = el("briefBucket").value;
     state.caption = data.caption || "";
     state.hashtags = data.hashtags || "";
@@ -562,14 +616,15 @@ function generateDraft() {
 
     if (state.format === "video") {
       state.slides = [
-        { headline: data.titleCard || "", body: "", imageData: null, imagePrompt: "", kind: "Title card" },
-        { headline: data.endCard || "", body: "", imageData: null, imagePrompt: "", kind: "End card" }
+        { headline: data.titleCard || "", body: "", imageData: null, imagePrompt: "", kind: "Title card", composition: "bottom" },
+        { headline: data.endCard || "", body: "", imageData: null, imagePrompt: "", kind: "End card", composition: "bottom" }
       ];
     } else {
       state.slides = (data.slides || []).map(function (s) {
         return {
           headline: s.headline || "", body: s.body || "",
-          imageData: null, imagePrompt: s.imagePrompt || ""
+          imageData: null, imagePrompt: s.imagePrompt || "",
+          composition: validComposition(s.composition)
         };
       });
     }
@@ -668,6 +723,62 @@ function pickSlideImage(idx) {
 }
 
 /* ============================================================
+   inspiration references — read by Claude for creative direction,
+   never rendered onto a slide. Downscaled client-side both to keep
+   localStorage drafts small and to keep the vision call cheap; a
+   phone photo straight off Pinterest can be several MB otherwise.
+   ============================================================ */
+var MAX_INSPIRATION = 3, INSPIRATION_MAX_DIM = 1024;
+
+function downscaleImageFile(file, maxDim) {
+  return new Promise(function (resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        var w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        var canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = function () { reject(new Error("Couldn't read that image.")); };
+      img.src = reader.result;
+    };
+    reader.onerror = function () { reject(new Error("Couldn't read that image.")); };
+    reader.readAsDataURL(file);
+  });
+}
+
+function addInspirationImage() {
+  if (state.inspiration.length >= MAX_INSPIRATION) {
+    showToast("Up to " + MAX_INSPIRATION + " reference images.", "error");
+    return;
+  }
+  var input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.addEventListener("change", function () {
+    var file = input.files && input.files[0];
+    if (!file) return;
+    downscaleImageFile(file, INSPIRATION_MAX_DIM).then(function (dataUrl) {
+      state.inspiration.push(dataUrl);
+      renderInspirationRow();
+    }).catch(function (e) { showToast(e.message || String(e), "error"); });
+  });
+  input.click();
+}
+
+function renderInspirationRow() {
+  el("inspirationRow").innerHTML = state.inspiration.map(function (src, i) {
+    return '<div class="insp-thumb"><img src="' + src + '" alt="Reference image ' + (i + 1) + '">' +
+      '<button type="button" data-rminsp="' + i + '" aria-label="Remove reference image" title="Remove reference image">' + ICON_X + '</button></div>';
+  }).join("");
+  el("addInspirationBtn").disabled = state.inspiration.length >= MAX_INSPIRATION;
+}
+
+/* ============================================================
    canvas rendering
    ============================================================ */
 var imageCache = {};
@@ -693,34 +804,18 @@ function wrapText(ctx, text, maxWidth) {
   return lines;
 }
 
-function drawSlide(ctx, slide, index, total, transparent) {
-  var W = CANVAS_W, H = CANVAS_H, pad = 84;
-  var accent = BUCKET_COLORS[state.bucket] || BRAND.orange;
+// ---------- shared drawing helpers, reused by every composition below ----------
 
-  ctx.clearRect(0, 0, W, H);
-
-  if (!transparent) {
-    // base
-    ctx.fillStyle = BRAND.ink;
-    ctx.fillRect(0, 0, W, H);
-  }
-
-  var hasImg = slide._img;
+// cover-fit photo background, or a brand gradient fallback when there's no image yet.
+// Returns whether an image was actually drawn, so callers know whether a scrim is needed.
+function fillBackground(ctx, slide, W, H, accent, transparent) {
+  var hasImg = !!slide._img;
   if (hasImg) {
-    // cover-fit
     var img = slide._img;
     var scale = Math.max(W / img.width, H / img.height);
     var dw = img.width * scale, dh = img.height * scale;
     ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
-    // scrim so text stays legible over any photo
-    var g = ctx.createLinearGradient(0, H * 0.25, 0, H);
-    g.addColorStop(0, "rgba(24,24,27,0)");
-    g.addColorStop(0.55, "rgba(24,24,27,0.72)");
-    g.addColorStop(1, "rgba(24,24,27,0.94)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
   } else if (!transparent) {
-    // brand gradient fallback
     var g2 = ctx.createLinearGradient(0, 0, W, H);
     g2.addColorStop(0, BRAND.ink);
     g2.addColorStop(1, accent);
@@ -731,17 +826,62 @@ function drawSlide(ctx, slide, index, total, transparent) {
     ctx.fillRect(0, 0, W, H);
     ctx.globalAlpha = 1;
   }
+  return hasImg;
+}
 
-  // accent rule, top-left
+// bottom-weighted dark gradient so text stays legible over any photo, between two 0-1 fractions of H.
+function fillScrim(ctx, W, H, from, to) {
+  var g = ctx.createLinearGradient(0, H * from, 0, H * to);
+  g.addColorStop(0, "rgba(24,24,27,0)");
+  g.addColorStop(0.55, "rgba(24,24,27,0.72)");
+  g.addColorStop(1, "rgba(24,24,27,0.94)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawAccentRule(ctx, pad, accent) {
   ctx.fillStyle = accent;
   ctx.fillRect(pad, pad, 96, 8);
+}
+
+// Wordmark + slide counter + hook swipe-cue. leftX/rightX let compositions with a narrower
+// text panel (e.g. split) keep the footer inside that panel instead of spanning the full canvas.
+// The wordmark is always Mediashock orange regardless of composition or bucket accent.
+function drawFooter(ctx, H, pad, leftX, rightX, index, total, accent, showSwipe) {
+  ctx.textAlign = "left";
+  ctx.font = "650 26px " + BRAND.headFamily;
+  ctx.fillStyle = BRAND.orange;
+  ctx.fillText(BRAND.wordmark, leftX, H - pad);
+
+  if (total > 1 && state.format !== "video") {
+    ctx.font = "400 26px " + BRAND.bodyFamily;
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    var label = (index + 1) + " / " + total;
+    ctx.fillText(label, rightX - ctx.measureText(label).width, H - pad);
+
+    if (showSwipe) {
+      ctx.strokeStyle = accent; ctx.lineWidth = 5; ctx.lineCap = "round";
+      var ax = rightX - 46, ay = H - pad - 74;
+      ctx.beginPath();
+      ctx.moveTo(ax - 34, ay); ctx.lineTo(ax, ay);
+      ctx.moveTo(ax - 12, ay - 12); ctx.lineTo(ax, ay); ctx.lineTo(ax - 12, ay + 12);
+      ctx.stroke();
+    }
+  }
+}
+
+// ---------- composition: bottom (default) — full-bleed photo, text anchored at the base ----------
+function drawSlideBottom(ctx, slide, index, total, transparent) {
+  var W = CANVAS_W, H = CANVAS_H, pad = 84;
+  var accent = BUCKET_COLORS[state.bucket] || BRAND.orange;
+  var hasImg = fillBackground(ctx, slide, W, H, accent, transparent);
+  if (hasImg) fillScrim(ctx, W, H, 0.25, 1);
+  drawAccentRule(ctx, pad, accent);
 
   var isHook = index === 0 && total > 1;
   var headSize = isHook ? 104 : 78;
   var bodySize = 38;
 
-  // headline — bottom-anchored block
-  ctx.textBaseline = "alphabetic";
   ctx.fillStyle = "#ffffff";
   ctx.font = "650 " + headSize + "px " + BRAND.headFamily;
   var headLines = wrapText(ctx, slide.headline, W - pad * 2);
@@ -765,28 +905,171 @@ function drawSlide(ctx, slide, index, total, transparent) {
     bodyLines.forEach(function (ln) { ctx.fillText(ln, pad, y); y += bodyLH; });
   }
 
-  // footer: wordmark + slide counter. The wordmark is always Mediashock orange — the bucket
-  // accent colours the rule and the counter, but the brand mark itself must not drift per topic.
-  ctx.font = "650 26px " + BRAND.headFamily;
-  ctx.fillStyle = BRAND.orange;
-  ctx.fillText(BRAND.wordmark, pad, H - pad);
+  drawFooter(ctx, H, pad, pad, W - pad, index, total, accent, isHook);
+}
 
-  if (total > 1 && state.format !== "video") {
-    ctx.font = "400 26px " + BRAND.bodyFamily;
-    ctx.fillStyle = "rgba(255,255,255,0.6)";
-    var label = (index + 1) + " / " + total;
-    ctx.fillText(label, W - pad - ctx.measureText(label).width, H - pad);
+// ---------- composition: split — image fills ~56% of the frame, text sits on a solid panel ----------
+function drawSlideSplit(ctx, slide, index, total, transparent) {
+  var W = CANVAS_W, H = CANVAS_H, pad = 84;
+  var accent = BUCKET_COLORS[state.bucket] || BRAND.orange;
+  var imgOnRight = index % 2 === 0;   // alternates per slide so a deck doesn't lean the same way every time
+  var imgW = Math.round(W * 0.56);
+  var panelW = W - imgW;
+  var panelX = imgOnRight ? 0 : imgW;
+  var imgX = imgOnRight ? panelW : 0;
 
-    // swipe cue on the hook slide
-    if (isHook) {
-      ctx.strokeStyle = accent; ctx.lineWidth = 5; ctx.lineCap = "round";
-      var ax = W - pad - 46, ay = H - pad - 74;
-      ctx.beginPath();
-      ctx.moveTo(ax - 34, ay); ctx.lineTo(ax, ay);
-      ctx.moveTo(ax - 12, ay - 12); ctx.lineTo(ax, ay); ctx.lineTo(ax - 12, ay + 12);
-      ctx.stroke();
-    }
+  ctx.fillStyle = BRAND.ink;
+  ctx.fillRect(panelX, 0, panelW, H);
+
+  var hasImg = !!slide._img;
+  if (hasImg) {
+    var img = slide._img;
+    var scale = Math.max(imgW / img.width, H / img.height);
+    var dw = img.width * scale, dh = img.height * scale;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(imgX, 0, imgW, H);
+    ctx.clip();
+    ctx.drawImage(img, imgX + (imgW - dw) / 2, (H - dh) / 2, dw, dh);
+    ctx.restore();
+  } else if (!transparent) {
+    ctx.fillStyle = accent;
+    ctx.fillRect(imgX, 0, imgW, H);
   }
+
+  drawAccentRule(ctx, pad, accent);
+
+  var textPad = 56;   // tighter than the full-bleed pad -- the panel itself is already narrow
+  var textX = panelX + textPad;
+  var maxW = panelW - textPad * 2;
+  var headSize = 62, bodySize = 32;
+
+  ctx.font = "650 " + headSize + "px " + BRAND.headFamily;
+  var headLines = wrapText(ctx, slide.headline, maxW);
+  ctx.font = "400 " + bodySize + "px " + BRAND.bodyFamily;
+  var bodyLines = slide.body ? wrapText(ctx, slide.body, maxW) : [];
+
+  var headLH = headSize * 1.15, bodyLH = bodySize * 1.45;
+  var blockH = headLines.length * headLH + (bodyLines.length ? 24 + bodyLines.length * bodyLH : 0);
+  var y = (H - blockH) / 2 + headLH * 0.78;
+
+  ctx.font = "650 " + headSize + "px " + BRAND.headFamily;
+  ctx.fillStyle = "#ffffff";
+  headLines.forEach(function (ln) { ctx.fillText(ln, textX, y); y += headLH; });
+
+  if (bodyLines.length) {
+    y += 24 - headLH + bodyLH * 0.2;
+    ctx.font = "400 " + bodySize + "px " + BRAND.bodyFamily;
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    bodyLines.forEach(function (ln) { ctx.fillText(ln, textX, y); y += bodyLH; });
+  }
+
+  // Kept off the split composition: a swipe-cue arrow anchored to the counter reads awkwardly
+  // when the counter itself sits mid-canvas instead of the far corner.
+  drawFooter(ctx, H, pad, panelX + textPad, panelX + panelW - textPad, index, total, accent, false);
+}
+
+// ---------- composition: quote — centered pull-quote, no image required ----------
+function drawSlideQuote(ctx, slide, index, total, transparent) {
+  var W = CANVAS_W, H = CANVAS_H, pad = 84;
+  var accent = BUCKET_COLORS[state.bucket] || BRAND.orange;
+  var hasImg = fillBackground(ctx, slide, W, H, accent, transparent);
+  if (hasImg) {
+    // heavier, full-frame scrim than the bottom composition -- this one is text-first throughout
+    ctx.fillStyle = "rgba(24,24,27,0.62)";
+    ctx.fillRect(0, 0, W, H);
+  }
+  drawAccentRule(ctx, pad, accent);
+
+  var maxW = W - pad * 2 - 40;
+  var headSize = 92;
+  ctx.font = "650 " + headSize + "px " + BRAND.headFamily;
+  var headLines = wrapText(ctx, slide.headline, maxW);
+  var bodySize = 34;
+  ctx.font = "400 " + bodySize + "px " + BRAND.bodyFamily;
+  var bodyLines = slide.body ? wrapText(ctx, slide.body, maxW) : [];
+
+  var headLH = headSize * 1.18, bodyLH = bodySize * 1.5;
+  var blockH = headLines.length * headLH + (bodyLines.length ? 30 + bodyLines.length * bodyLH : 0);
+  var y = (H - blockH) / 2 + headLH * 0.78;
+
+  ctx.textAlign = "center";
+  ctx.font = "650 " + headSize + "px " + BRAND.headFamily;
+  ctx.fillStyle = "#ffffff";
+  headLines.forEach(function (ln) { ctx.fillText(ln, W / 2, y); y += headLH; });
+
+  if (bodyLines.length) {
+    y += 30 - headLH + bodyLH * 0.2;
+    ctx.font = "400 " + bodySize + "px " + BRAND.bodyFamily;
+    ctx.fillStyle = "rgba(255,255,255,0.75)";
+    bodyLines.forEach(function (ln) { ctx.fillText(ln, W / 2, y); y += bodyLH; });
+  }
+  ctx.textAlign = "left";
+
+  drawFooter(ctx, H, pad, pad, W - pad, index, total, accent, index === 0 && total > 1);
+}
+
+// ---------- composition: stat — a big number/claim anchored near the top ----------
+function drawSlideStat(ctx, slide, index, total, transparent) {
+  var W = CANVAS_W, H = CANVAS_H, pad = 84;
+  var accent = BUCKET_COLORS[state.bucket] || BRAND.orange;
+  var hasImg = fillBackground(ctx, slide, W, H, accent, transparent);
+  if (hasImg) {
+    // scrim weighted toward the top third, where the stat sits -- inverse of the bottom composition
+    var g = ctx.createLinearGradient(0, 0, 0, H * 0.6);
+    g.addColorStop(0, "rgba(24,24,27,0.88)");
+    g.addColorStop(1, "rgba(24,24,27,0.1)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+  drawAccentRule(ctx, pad, accent);
+
+  var maxW = W - pad * 2;
+  var headSize = 150;
+  ctx.font = "650 " + headSize + "px " + BRAND.headFamily;
+  var headLines = wrapText(ctx, slide.headline, maxW);
+  // a stat headline is usually 1-2 words; shrink if it wrapped further so it can't collide with the body
+  while (headLines.length > 2 && headSize > 70) {
+    headSize -= 10;
+    ctx.font = "650 " + headSize + "px " + BRAND.headFamily;
+    headLines = wrapText(ctx, slide.headline, maxW);
+  }
+  var bodySize = 36;
+  ctx.font = "400 " + bodySize + "px " + BRAND.bodyFamily;
+  var bodyLines = slide.body ? wrapText(ctx, slide.body, maxW) : [];
+
+  var headLH = headSize * 1.05, bodyLH = bodySize * 1.4;
+  var y = pad + headSize * 0.85;
+
+  ctx.font = "650 " + headSize + "px " + BRAND.headFamily;
+  ctx.fillStyle = "#ffffff";
+  headLines.forEach(function (ln) { ctx.fillText(ln, pad, y); y += headLH; });
+
+  if (bodyLines.length) {
+    y += 20;
+    ctx.font = "400 " + bodySize + "px " + BRAND.bodyFamily;
+    ctx.fillStyle = "rgba(255,255,255,0.82)";
+    bodyLines.forEach(function (ln) { ctx.fillText(ln, pad, y); y += bodyLH; });
+  }
+
+  drawFooter(ctx, H, pad, pad, W - pad, index, total, accent, index === 0 && total > 1);
+}
+
+// ---------- dispatcher — the single entry point every renderer (preview, PNG, PDF) calls ----------
+function drawSlide(ctx, slide, index, total, transparent) {
+  var W = CANVAS_W, H = CANVAS_H;
+  ctx.clearRect(0, 0, W, H);
+  if (!transparent) { ctx.fillStyle = BRAND.ink; ctx.fillRect(0, 0, W, H); }
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+
+  // Video title/end cards always use the simplest composition -- they're single short lines with
+  // no imagePrompt-driven art direction, so composition variety has nothing to work with there.
+  var comp = state.format === "video" ? "bottom" : validComposition(slide.composition);
+  if (comp === "split") return drawSlideSplit(ctx, slide, index, total, transparent);
+  if (comp === "quote") return drawSlideQuote(ctx, slide, index, total, transparent);
+  if (comp === "stat") return drawSlideStat(ctx, slide, index, total, transparent);
+  return drawSlideBottom(ctx, slide, index, total, transparent);
 }
 
 function drawPreview() {
@@ -820,6 +1103,7 @@ function renderDraft() {
   el("scriptBox").textContent = state.script || "";
   el("draftCaption").value = state.caption;
   el("draftHashtags").value = state.hashtags;
+  renderInspirationRow();
   renderSlideRows();
   syncExportButtons();
   drawPreview();
@@ -842,7 +1126,13 @@ function renderSlideRows() {
         '</div>' +
         '<input type="text" data-field="headline" data-i="' + i + '" value="' + escapeHtml(s.headline) + '" placeholder="Headline">' +
         (state.format === "video" ? "" :
-          '<textarea data-field="body" data-i="' + i + '" placeholder="Supporting line">' + escapeHtml(s.body) + '</textarea>') +
+          '<textarea data-field="body" data-i="' + i + '" placeholder="Supporting line">' + escapeHtml(s.body) + '</textarea>' +
+          '<label class="hint" style="display:block;margin:0.4rem 0 0.15rem">Composition</label>' +
+          '<select data-field="composition" data-i="' + i + '">' +
+            COMPOSITION_KEYS.map(function (c) {
+              return '<option value="' + c + '"' + (validComposition(s.composition) === c ? " selected" : "") + '>' + c + '</option>';
+            }).join("") +
+          '</select>') +
         '<div class="slide-actions">' +
           '<button type="button" class="btn btn-sm" data-genimg="' + i + '">' + ICON_IMAGE + ' Generate image</button>' +
           '<button type="button" class="btn btn-sm" data-pickimg="' + i + '">Use my own</button>' +
@@ -1044,9 +1334,13 @@ function saveDraft() {
     bucket: state.bucket,
     savedAt: new Date().toISOString(),
     slides: state.slides.map(function (s) {
-      return { headline: s.headline, body: s.body, imageData: s.imageData || null, imagePrompt: s.imagePrompt || "", kind: s.kind || null };
+      return {
+        headline: s.headline, body: s.body, imageData: s.imageData || null, imagePrompt: s.imagePrompt || "",
+        kind: s.kind || null, composition: validComposition(s.composition)
+      };
     }),
-    caption: state.caption, hashtags: state.hashtags, script: state.script
+    caption: state.caption, hashtags: state.hashtags, script: state.script,
+    inspiration: state.inspiration.slice()
   };
   var idx = list.findIndex(function (d) { return d.id === payload.id; });
   if (idx === -1) list.unshift(payload); else list[idx] = payload;
@@ -1062,6 +1356,7 @@ function openDraft(id) {
   state.format = d.format; state.bucket = d.bucket; state.caption = d.caption;
   state.hashtags = d.hashtags; state.script = d.script || "";
   state.slides = d.slides.map(function (s) { return Object.assign({}, s); });
+  state.inspiration = (d.inspiration || []).slice();
   state.current = 0; state.draftId = d.id;
   Array.prototype.forEach.call(el("formatSeg").children, function (b) {
     b.classList.toggle("active", b.dataset.format === state.format);
@@ -1114,6 +1409,14 @@ el("formatSeg").addEventListener("click", function (e) {
 
 el("generateBtn").addEventListener("click", generateDraft);
 el("regenBtn").addEventListener("click", generateDraft);
+
+el("addInspirationBtn").addEventListener("click", addInspirationImage);
+el("inspirationRow").addEventListener("click", function (e) {
+  var rm = e.target.closest("[data-rminsp]");
+  if (!rm) return;
+  state.inspiration.splice(parseInt(rm.dataset.rminsp, 10), 1);
+  renderInspirationRow();
+});
 
 el("slideList").addEventListener("input", function (e) {
   var f = e.target.dataset.field;
@@ -1221,7 +1524,7 @@ applyTheme(localStorage.getItem(LS_THEME) || "dark");
    so CURRENT_BUILD_VERSION and version.txt are both hand-edited on any deploy-worthy change —
    keep them in sync manually. Never reloads out from under an open modal, or an in-progress
    generate/export would be lost mid-action. */
-var CURRENT_BUILD_VERSION = "2026-08-18T00:00:00Z";
+var CURRENT_BUILD_VERSION = "2026-08-18T04:25:39Z";
 var pendingBuildVersion = null;
 
 function anyModalOpen() {
@@ -1258,6 +1561,7 @@ el("nextSlideBtn").innerHTML = ICON_CHEV_R;
 el("keysCloseBtn").innerHTML = ICON_X;
 el("draftsCloseBtn").innerHTML = ICON_X;
 el("slideCountWrap").hidden = false;
+renderInspirationRow();
 syncExportButtons();
 drawPreview();
 </script>
