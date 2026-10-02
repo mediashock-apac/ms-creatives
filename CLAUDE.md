@@ -52,7 +52,8 @@ Three, each with a reason:
 
 ## Deployment
 
-Repo: https://github.com/deane-ms/ms-creatives — hosted on GitHub Pages. Run locally with:
+Repo: https://github.com/mediashock-apac/ms-creatives — hosted on GitHub Pages, live at
+https://mediashock-apac.github.io/ms-creatives/. Run locally with:
 
 ```
 python -m http.server 8791
